@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Посты авторов, на которых подписан текущий пользователь{% endblock %}
+{% block content %}
+
+<h1>Посты авторов, на которых вы подписаны</h1>
+{% include 'posts/includes/switcher.html' %}
+  {% for post in page_obj %}
+    <article>
+      {% include 'includes/article.html' with post_author=post.author.username %}   
+      <a href="{% url 'posts:post_detail' post.id %}">Подробная информация</a>
+      {% if post.group %}
+        <p>Группа: {{ post.group.title }}
+        <a href="{% url 'posts:group_list' post.group.slug %}">Все записи группы</a>
+        </p>
+      {% endif %}
+      {% if not forloop.last %}<hr>{% endif %}
+    </article>
+  {% endfor %}
+  {% include 'posts/includes/paginator.html' %}
+{% endblock %}
