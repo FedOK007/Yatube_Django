@@ -151,3 +151,4 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
+CROP_LEN_TEXT = 15

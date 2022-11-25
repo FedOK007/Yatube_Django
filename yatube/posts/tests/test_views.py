@@ -1,19 +1,16 @@
 import shutil
 import tempfile
 
-from django import forms
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from ..models import Comment, Follow, Group, Post
+from ..models import Comment, Follow, Group, Post, User
+from ..forms import CommentForm, PostForm
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
-
-User = get_user_model()
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -80,6 +77,42 @@ class PostsPagesTests(TestCase):
             group=cls.group_1,
             image=cls.uploaded,
         )
+        cls.pages_with_list_posts = [
+            reverse('posts:index'),
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': PostsPagesTests.group_1.slug},
+            ),
+            reverse(
+                'posts:profile',
+                kwargs={'username': PostsPagesTests.new_user_1.username}
+            ),
+        ]
+        cls.pages_check_not_post = [
+            reverse(
+                'posts:group_list',
+                kwargs={'slug': PostsPagesTests.group_2.slug},
+            ),
+            reverse(
+                'posts:profile',
+                kwargs={'username': PostsPagesTests.new_user_2.username}
+            ),
+        ]
+        cls.page_singl_post = reverse(
+            'posts:post_detail',
+            kwargs={'post_id': cls.post_with_image.id},
+        )
+        cls.pages_with_post_form = {
+            reverse(
+                'posts:post_edit',
+                kwargs={'post_id': cls.post_1.id},
+            ): 'edit',
+            reverse('posts:post_create'): 'create',
+        }
+        cls.page_post_without_comment = reverse(
+            'posts:post_detail',
+            kwargs={'post_id': PostsPagesTests.post_2.id}
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -87,6 +120,7 @@ class PostsPagesTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        cache.clear()
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(PostsPagesTests.new_user_1)
@@ -101,18 +135,7 @@ class PostsPagesTests(TestCase):
                 self.assertTemplateUsed(response, template)
 
     def test_page_context_has_posts(self):
-        pages_with_list_posts = [
-            reverse('posts:index'),
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': PostsPagesTests.group_1.slug},
-            ),
-            reverse(
-                'posts:profile',
-                kwargs={'username': PostsPagesTests.new_user_1.username}
-            ),
-        ]
-        for page in pages_with_list_posts:
+        for page in PostsPagesTests.pages_with_list_posts:
             with self.subTest(
                 page=page
             ):
@@ -122,13 +145,16 @@ class PostsPagesTests(TestCase):
                     all(isinstance(x, Post) for x in page_obj),
                     'В контексте передается не список Post'
                 )
+                self.assertIn(PostsPagesTests.post_with_image, page_obj)
+                for post in page_obj:
+                    if post == PostsPagesTests.post_with_image:
+                        self.assertNotEqual(
+                            post.image,
+                            ''
+                        )
 
     def test_page_context_singl_post(self):
-        page = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': PostsPagesTests.post_1.id},
-        )
-        response = self.authorized_client.get(page)
+        response = self.authorized_client.get(PostsPagesTests.page_singl_post)
         post = response.context.get('post')
         self.assertIsInstance(
             post,
@@ -137,18 +163,14 @@ class PostsPagesTests(TestCase):
         )
         self.assertEqual(
             post.id,
-            PostsPagesTests.post_1.id
+            PostsPagesTests.post_with_image.id
         )
+        self.assertNotEqual(post.image, '')
 
     def test_page_context_form(self):
-        pages_with_form = {
-            reverse(
-                'posts:post_edit',
-                kwargs={'post_id': PostsPagesTests.post_1.id},
-            ): 'edit',
-            reverse('posts:post_create'): 'create',
-        }
-        for reverse_name, action in pages_with_form.items():
+        for reverse_name, action in (
+            PostsPagesTests.pages_with_post_form.items()
+        ):
             with self.subTest(
                 reverse_name=reverse_name
             ):
@@ -156,7 +178,7 @@ class PostsPagesTests(TestCase):
                 form = response.context.get('form')
                 self.assertIsInstance(
                     form,
-                    forms.ModelForm,
+                    PostForm,
                     'В контексте не передается форма forms.ModelForm',
                 )
                 self.assertIsInstance(
@@ -184,18 +206,7 @@ class PostsPagesTests(TestCase):
             author=PostsPagesTests.new_user_1,
             group=PostsPagesTests.group_1,
         )
-        check_list_pages = [
-            reverse('posts:index'),
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': PostsPagesTests.group_1.slug},
-            ),
-            reverse(
-                'posts:profile',
-                kwargs={'username': PostsPagesTests.new_user_1.username}
-            ),
-        ]
-        for page in check_list_pages:
+        for page in PostsPagesTests.pages_with_list_posts:
             with self.subTest(page=page):
                 response = self.guest_client.get(page)
                 page_obj = response.context.get('page_obj').object_list
@@ -207,74 +218,19 @@ class PostsPagesTests(TestCase):
             author=PostsPagesTests.new_user_1,
             group=PostsPagesTests.group_1,
         )
-        check_list_pages = [
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': PostsPagesTests.group_2.slug},
-            ),
-            reverse(
-                'posts:profile',
-                kwargs={'username': PostsPagesTests.new_user_2.username}
-            ),
-        ]
-        for page in check_list_pages:
+        for page in PostsPagesTests.pages_check_not_post:
             with self.subTest(page=page):
                 response = self.guest_client.get(page)
                 page_obj = response.context.get('page_obj').object_list
                 self.assertNotIn(new_post, page_obj)
 
-    def test_image_in_context_pages_posts(self):
-        check_list_pages = [
-            reverse('posts:index'),
-            reverse(
-                'posts:profile',
-                kwargs={'username': PostsPagesTests.new_user_1.username}
-            ),
-            reverse(
-                'posts:group_list',
-                kwargs={'slug': PostsPagesTests.group_1.slug},
-            ),
-        ]
-        for page in check_list_pages:
-            with self.subTest(
-                page=page,
-            ):
-                response = self.authorized_client.get(page)
-                post_object = response.context.get('page_obj').object_list
-                self.assertIn(PostsPagesTests.post_with_image, post_object)
-                for post in post_object:
-                    if post == PostsPagesTests.post_with_image:
-                        self.assertNotEqual(
-                            post.image,
-                            ''
-                        )
-
-    def test_image_in_context_single_post(self):
-        check_list_pages = [
-            reverse(
-                'posts:post_detail',
-                kwargs={'post_id': PostsPagesTests.post_with_image.id},
-            ),
-        ]
-        for page in check_list_pages:
-            with self.subTest(
-                page=page,
-            ):
-                response = self.authorized_client.get(page)
-                post = response.context.get('post')
-                self.assertNotEqual(post.image, '')
-
     def test_context_contain_form_comment(self):
-        reverse_name = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': PostsPagesTests.post_1.id}
-        )
-        response = self.authorized_client.get(reverse_name)
+        response = self.authorized_client.get(PostsPagesTests.page_singl_post)
         form = response.context.get('form')
         self.assertIsInstance(
             form,
-            forms.ModelForm,
-            'В контексте не передается форма forms.ModelForm',
+            CommentForm,
+            'В контексте не передается форма CommentForm(forms.ModelForm)',
         )
         self.assertIsInstance(
             form.instance,
@@ -284,30 +240,24 @@ class PostsPagesTests(TestCase):
         )
 
     def test_context_create_new_comment(self):
-        reverse_name_with_comment = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': PostsPagesTests.post_1.id}
-        )
         new_comment = Comment.objects.create(
             text='Comment test for post, check adding',
             author=PostsPagesTests.new_user_1,
-            post=PostsPagesTests.post_1,
+            post=PostsPagesTests.post_with_image,
         )
-        response = self.authorized_client.get(reverse_name_with_comment)
+        response = self.authorized_client.get(PostsPagesTests.page_singl_post)
         comments = response.context.get('page_obj').object_list
         self.assertIn(new_comment, comments)
 
     def test_context_comment_not_on_page(self):
-        reverse_name_without_comment = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': PostsPagesTests.post_2.id}
-        )
         new_comment = Comment.objects.create(
             text='Comment test for post, check adding',
             author=PostsPagesTests.new_user_1,
             post=PostsPagesTests.post_1,
         )
-        response = self.authorized_client.get(reverse_name_without_comment)
+        response = self.authorized_client.get(
+            PostsPagesTests.page_post_without_comment
+        )
         comments = response.context.get('page_obj').object_list
         self.assertNotIn(new_comment, comments)
 
@@ -424,9 +374,33 @@ class FollowTest(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.new_user_1 = User.objects.create_user(username='testing_user_1')
-        cls.new_user_2 = User.objects.create_user(username='testing_user_2')
-        cls.new_user_3 = User.objects.create_user(username='testing_user_3')
+        users = [
+            User.objects.create_user(
+                username=f'testing_user_{i}'
+            ) for i in range(1, 4)
+        ]
+        cls.new_user_1, cls.new_user_2, cls.new_user_3 = users
+        cls.pages = {
+            'profile': reverse(
+                'posts:profile',
+                kwargs={
+                    'username': cls.new_user_2.username,
+                }
+            ),
+            'follow_index': reverse('posts:follow_index'),
+            'profile_follow': reverse(
+                'posts:profile_follow',
+                kwargs={
+                    'username': cls.new_user_2.username
+                }
+            ),
+            'profile_unfollow': reverse(
+                'posts:profile_unfollow',
+                kwargs={
+                    'username': cls.new_user_2.username
+                }
+            )
+        }
 
     def setUp(self):
         self.guest_client = Client()
@@ -439,21 +413,11 @@ class FollowTest(TestCase):
 
     def test_follow(self):
         response = self.authorized_client1.get(
-            reverse(
-                'posts:profile_follow',
-                kwargs={
-                    'username': FollowTest.new_user_2.username
-                }
-            )
+            FollowTest.pages['profile_follow']
         )
         self.assertRedirects(
             response,
-            reverse(
-                'posts:profile',
-                kwargs={
-                    'username': FollowTest.new_user_2.username,
-                }
-            )
+            FollowTest.pages['profile']
         )
         self.assertTrue(
             Follow.objects.filter(
@@ -461,32 +425,33 @@ class FollowTest(TestCase):
                 author=FollowTest.new_user_2
             ).exists()
         )
+        response = self.authorized_client1.get(
+            FollowTest.pages['profile_follow']
+        )
+        self.assertEqual(
+            FollowTest.new_user_1.follower.count(),
+            1,
+            'Проверьте, что нельзя подписаться дважы'
+        )
+        response = self.authorized_client2.get(
+            FollowTest.pages['profile_follow']
+        )
+        self.assertEqual(
+            FollowTest.new_user_2.follower.count(),
+            0,
+            'Проверьте, что нельзя подписаться на самого себя'
+        )
 
     def test_unfollow(self):
         self.authorized_client1.get(
-            reverse(
-                'posts:profile_follow',
-                kwargs={
-                    'username': FollowTest.new_user_2.username
-                }
-            )
+            FollowTest.pages['profile_follow']
         )
         response = self.authorized_client1.get(
-            reverse(
-                'posts:profile_unfollow',
-                kwargs={
-                    'username': FollowTest.new_user_2.username
-                }
-            )
+            FollowTest.pages['profile_unfollow']
         )
         self.assertRedirects(
             response,
-            reverse(
-                'posts:profile',
-                kwargs={
-                    'username': FollowTest.new_user_2.username,
-                }
-            )
+            FollowTest.pages['profile']
         )
         self.assertFalse(
             Follow.objects.filter(
@@ -497,18 +462,17 @@ class FollowTest(TestCase):
 
     def test_new_post_follow(self):
         response = self.authorized_client1.get(
-            reverse(
-                'posts:profile_follow',
-                kwargs={
-                    'username': FollowTest.new_user_2.username
-                }
-            )
+            FollowTest.pages['profile_follow']
         )
         new_post = Post.objects.create(
             text='testing following post',
             author=FollowTest.new_user_2,
         )
-        response = self.authorized_client1.get(reverse('posts:follow_index'))
+        response = self.authorized_client1.get(
+            FollowTest.pages['follow_index']
+        )
         self.assertIn(new_post, response.context.get('page_obj'))
-        response = self.authorized_client3.get(reverse('posts:follow_index'))
+        response = self.authorized_client3.get(
+            FollowTest.pages['follow_index']
+        )
         self.assertNotIn(new_post, response.context.get('page_obj'))

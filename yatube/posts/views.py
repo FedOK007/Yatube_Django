@@ -11,9 +11,7 @@ User = get_user_model()
 
 
 def index(request):
-    posts_list = (Post.objects
-                  .select_related('group', 'author')
-                  .all())
+    posts_list = (Post.objects.select_related('group', 'author'))
 
     return render(request,
                   'posts/index.html',
@@ -45,13 +43,10 @@ def profile(request, username):
         .select_related('group', 'author')
         .filter(author=author))
 
-    if request.user.is_authenticated:
-        user = User.objects.get(id=request.user.id)
-        following = (
-            Follow.objects.filter(user=user, author=author).exists()
-        )
-    else:
-        following = None
+    following = (
+        request.user.is_authenticated
+        and Follow.objects.filter(user=request.user, author=author).exists()
+    )
 
     return render(request,
                   'posts/profile.html',
@@ -70,7 +65,7 @@ def post_detail(request, post_id):
     )
     post = get_object_or_404(posts, id=post_id)
     form = CommentForm(request.POST or None)
-    comment_list = post.comments.select_related('author').all()
+    comment_list = post.comments.select_related('author')
     return render(
         request,
         'posts/post_detail.html',
@@ -143,11 +138,10 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    user = get_object_or_404(User, id=request.user.id)
     posts = (
         Post.objects
         .select_related('group', 'author')
-        .filter(author_id__in=user.follower.values('author'))
+        .filter(author__following__user=request.user)
     )
     return render(
         request,
@@ -164,11 +158,8 @@ def follow_index(request):
 @login_required
 def profile_follow(request, username):
     author = get_object_or_404(User, username=username)
-    if (
-        request.user != author
-        and not request.user.follower.filter(author=author)
-    ):
-        Follow.objects.create(
+    if request.user != author:
+        Follow.objects.get_or_create(
             user=request.user,
             author=author,
         )

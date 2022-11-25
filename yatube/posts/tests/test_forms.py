@@ -2,17 +2,14 @@ import shutil
 import tempfile
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from ..forms import PostForm
-from ..models import Group, Post
+from ..models import Group, Post, User
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
-
-User = get_user_model()
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -55,11 +52,12 @@ class PostFormTest(TestCase):
         self.authorize_client = Client()
         self.authorize_client.force_login(PostFormTest.new_user_1)
 
-    def test_create_post(self):
+    def test_create_post_with_image(self):
         count_posts = Post.objects.count()
         form_data = {
             'text': 'new post from test_create_post',
             'group': PostFormTest.group_1.id,
+            'image': PostFormTest.uploaded,
         }
         response = self.authorize_client.post(
             reverse('posts:post_create'),
@@ -82,6 +80,7 @@ class PostFormTest(TestCase):
             latest_post.text == form_data['text'],
             latest_post.group.id == form_data['group'],
             latest_post.author == PostFormTest.new_user_1,
+            latest_post.image == f'posts/{PostFormTest.uploaded}'
         ]))
 
     def test_change_post(self):
@@ -112,24 +111,6 @@ class PostFormTest(TestCase):
         self.assertEqual(
             changed_post.text, form_data['text']
         )
-
-    def test_create_post_with_image(self):
-        count_posts = Post.objects.count()
-        form_data = {
-            'text': 'new post from test_create_post',
-            'group': PostFormTest.group_1.id,
-            'image': PostFormTest.uploaded,
-        }
-        response = self.authorize_client.post(
-            reverse('posts:post_create'),
-            data=form_data,
-            follow=True
-        )
-        self.assertRedirects(response, reverse(
-            'posts:profile',
-            kwargs={'username': PostFormTest.new_user_1.username},
-        ))
-        self.assertEqual(Post.objects.count(), count_posts + 1)
 
     def test_comment_post(self):
         count_comments = PostFormTest.post_1.comments.count()

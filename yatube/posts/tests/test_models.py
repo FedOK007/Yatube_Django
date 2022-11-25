@@ -1,10 +1,11 @@
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.test import TestCase
 
-from ..models import Comment, Group, Post
+from ..models import Comment, Group, Post, User
 from ..models import CROP_LEN_TEXT
 
-User = get_user_model()
+
+CROP_LEN_TEXT = settings.CROP_LEN_TEXT
 
 
 class PostModelTests(TestCase):
