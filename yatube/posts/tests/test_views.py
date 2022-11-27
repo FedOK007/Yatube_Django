@@ -296,8 +296,8 @@ class PaginatorTests(TestCase):
             description='new test group_1 description',
         )
         cls.POST_ON_PAGE = int(settings.POSTS_ON_PAGE)
-        cls.COUNT_POSTS_USER_1 = int(cls.POST_ON_PAGE) * 2 - 1
-        cls.COUNT_POSTS_USER_2 = int(cls.POST_ON_PAGE) * 2 - 1
+        cls.COUNT_POSTS_USER_1 = cls.POST_ON_PAGE * 2 - 1
+        cls.COUNT_POSTS_USER_2 = cls.POST_ON_PAGE * 2 - 1
         cls.COUNT_POSTS_GROUP_1 = cls.COUNT_POSTS_USER_1
         cls.COUNT_POSTS_GROUP_2 = cls.COUNT_POSTS_USER_2
 

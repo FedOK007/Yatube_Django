@@ -64,7 +64,7 @@ class Post(CreateModel):
         verbose_name='Картинка',
     )
 
-    class Meta():
+    class Meta:
         ordering = ('-created',)
 
     def __str__(self):
@@ -91,7 +91,7 @@ class Comment(CreateModel):
         verbose_name='Автор',
     )
 
-    class Meta():
+    class Meta:
         ordering = ('-created',)
 
     def __str__(self):
