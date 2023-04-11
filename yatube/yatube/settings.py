@@ -29,6 +29,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '[::1]',
     'testserver',
+    'fedek.pythonanywhere.com',
 ]
 
 # Application definition
@@ -43,7 +44,7 @@ INSTALLED_APPS = [
     'posts.apps.PostsConfig',
     'users.apps.UsersConfig',
     'core.apps.CoreConfig',
-    'sorl.thumbnail',
+    #'sorl.thumbnail',
     'debug_toolbar',
 ]
 
