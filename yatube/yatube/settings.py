@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'posts.apps.PostsConfig',
     'users.apps.UsersConfig',
     'core.apps.CoreConfig',
-    #'sorl.thumbnail',
+    'sorl.thumbnail',
     'debug_toolbar',
 ]
 
