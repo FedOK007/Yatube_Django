@@ -17,7 +17,7 @@ Project is covered with tests (/yatube/posts/tests)
 Clone the repository and go to it on the command line:
 
 ```
-git clone git@github.com:FedOK007/hw05_final.git
+git clone git@github.com:FedOK007/Yatube_Django.git
 ```
 
 Go to the yatube directory
